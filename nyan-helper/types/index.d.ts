@@ -64,6 +64,8 @@ declare module 'claude-code' {
       week: Shaped<Record<string, DaySum>>
       /** 매니저 할 일 목록. $.store 'todos'에도 저장 */
       todos: Shaped<Todo[]>
+      /** 펼친 화면에서 보고 있는 탭: todo · now · stats */
+      tab: string
       /** 마감 드롭다운 상태: add = 새 할 일 마감('' = 오늘·'none'·'custom'·날짜), editing = 직접 입력 중인 행 */
       dueUi: Shaped<{ add: string; editing: string }>
     }

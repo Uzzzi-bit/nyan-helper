@@ -34,6 +34,8 @@ const isCompact = atom({ plugin: 'nyan-helper', key: 'isCompact' } as const, tru
 const week = atom({ plugin: 'nyan-helper', key: 'week' } as const, {} as Record<string, DaySum>, { shape: 'week-1' })
 /** 마감 드롭다운 상태: add = 새 할 일 마감('' = 오늘, 'none', 'custom', 날짜), editing = 직접 입력 중인 행 id */
 const dueUi = atom({ plugin: 'nyan-helper', key: 'dueUi' } as const, { add: '', editing: '' }, { shape: 'dueui-1' })
+/** 펼친 화면 탭: todo · now · stats (마지막 본 탭 기억) */
+const tab = atom({ plugin: 'nyan-helper', key: 'tab' } as const, 'todo')
 const todos = atom({ plugin: 'nyan-helper', key: 'todos' } as const, [] as Todo[], { shape: 'todos-2' })
 
 /** session.start에서 채움 (reload 때마다 다시) */
@@ -300,7 +302,7 @@ export const register: Register = (on, options) => {
     )
   })
 
-  // 패널: 접힘 = 띠 역할, 펼침 = 전체 통계
+  // 패널: 접힘 = 띠 역할(3줄 + 경고), 펼침 = 머리줄 + 탭(할 일 · 지금 · 통계)
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text, Svg, Progress, Button, Input, Select } = $.ui.resolve(e)
     const L = UI[prefs.lang]
@@ -310,10 +312,6 @@ export const register: Register = (on, options) => {
     const lines = linesFor(prefs.lang, prefs.tone, prefs.custom)
     const where = [l.project, activityText(prefs.lang, l.activity)].filter(Boolean).join(' · ')
     const dur = fmtDur(prefs.lang, t.activeMs)
-    const todo = l.todoTotal > 0 ? (
-      <Progress label={L.todo} value={l.todoDone} max={l.todoTotal} valueText={`${l.todoDone}/${l.todoTotal}`} color={COLOR} />
-    ) : null
-    const changed = topFiles(await read($, files), prefs.cwd, compact ? 3 : 8)
     const allRepos = await read($, repos)
     const dirty = allRepos.filter(isDirty)
     const repoText = (r: RepoState) =>
@@ -324,160 +322,200 @@ export const register: Register = (on, options) => {
       : <Text dimColor>🌿 {branch}</Text>
     const m = await read($, meter)
     const now = Date.now()
-    const topLimit = m.limits.reduce((a, b) => Math.max(a, b.pct), -1)
-    const failEl = l.lastFail ? <Text color={BAD}>❌ {L.failed}: {l.lastFail}</Text> : null
-    const sec = todoSections(await read($, todos), dayKey(now))
     const todayKey = dayKey(now)
-    const lateN = sec.dueToday.filter(x => (x.due ?? '') < todayKey).length
-    const nextUp = sec.dueToday[0] ?? sec.dueTomorrow[0] ?? sec.rest[0]
-    const todoLine = !nextUp ? null : (
-      <Text weight="semibold" color={COLOR}>
-        📋 {L.dueTodayShort} {sec.dueToday.length}
-        {lateN ? <Text color={BAD}> (⚠️{L.late} {lateN})</Text> : null}
-        {` · ${L.dueTomorrowShort} ${sec.dueTomorrow.length} · ${L.next}: ${nextUp.text}`}
-      </Text>
-    )
+    const topLimit = m.limits.reduce((a, b) => Math.max(a, b.pct), -1)
+    const meterEls = [
+      m.contextPct !== null
+        ? <Text tabular color={levelColor(m.contextPct)} dimColor={!levelColor(m.contextPct)}>🧠 {m.contextPct}%</Text>
+        : null,
+      topLimit >= 0
+        ? <Text tabular color={levelColor(topLimit)} dimColor={!levelColor(topLimit)}>⏳ {Math.round(topLimit)}%</Text>
+        : null,
+    ]
+    const failEl = l.lastFail ? <Text color={BAD}>❌ {L.failed}: {l.lastFail}</Text> : null
+    const sec = todoSections(await read($, todos), todayKey)
 
     if (compact) {
+      const lateN = sec.dueToday.filter(x => (x.due ?? '') < todayKey).length
+      const nextUp = sec.dueToday[0] ?? sec.dueTomorrow[0] ?? sec.rest[0]
       return (
         <Box flexDirection="column" paddingX={2} paddingY={1}>
-          {todoLine}
           <Box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
             <Text weight="semibold" color={COLOR}>{FACE[l.mood]}</Text>
             <Text weight="semibold">{lines[l.mood]}</Text>
             {where ? <Text dimColor>{where}</Text> : null}
             {branchEl}
-          </Box>
-          <Box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-            <Text dimColor tabular>
-              📝 {t.edits} · 🧪 {t.tests}{t.testsFailed ? ` (❌${t.testsFailed})` : ''} · 🛡️ {t.pushBlocked} · ⏱ {dur}
-            </Text>
-            {m.contextPct !== null ? (
-              <Text tabular color={levelColor(m.contextPct)} dimColor={!levelColor(m.contextPct)}>🧠 {m.contextPct}%</Text>
-            ) : null}
-            {topLimit >= 0 ? (
-              <Text tabular color={levelColor(topLimit)} dimColor={!levelColor(topLimit)}>⏳ {Math.round(topLimit)}%</Text>
-            ) : null}
             <Button key="expand" label={L.expand} onPress={() => update($, isCompact, () => false)} />
           </Box>
+          {nextUp ? (
+            <Text weight="semibold" color={COLOR}>
+              📋 {L.dueTodayShort} {sec.dueToday.length}
+              {lateN ? <Text color={BAD}> (⚠️{L.late} {lateN})</Text> : null}
+              {` · ${L.dueTomorrowShort} ${sec.dueTomorrow.length} · ${L.next}: ${nextUp.text}`}
+            </Text>
+          ) : null}
+          <Box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+            <Text dimColor tabular>
+              📝 {t.edits} · 🧪 {t.tests}{t.testsFailed ? ` (❌${t.testsFailed})` : ''} · ⏱ {dur}
+            </Text>
+            {meterEls}
+          </Box>
           {failEl}
-          {changed.length > 0 ? (
-            <Text dimColor>📄 {changed.map(f => `${f.label.split('/').pop()} +${f.count}`).join(' · ')}</Text>
-          ) : null}
           {dirty.length > 0 ? (
-            <Text color="#E0A23B">⚠️ {dirty.slice(0, 2).map(r => `${r.name}: ${repoText(r)}`).join(' / ')}{dirty.length > 2 ? ` +${dirty.length - 2}` : ''}</Text>
+            <Text color={WARN}>⚠️ {dirty.slice(0, 2).map(r => `${r.name}: ${repoText(r)}`).join(' / ')}{dirty.length > 2 ? ` +${dirty.length - 2}` : ''}</Text>
           ) : null}
-          {todo}
         </Box>
       )
     }
 
-    const top = topProjects(t, 4)
-    const hist = await read($, week)
-    const vs = vsYesterday(prefs.lang, hist, todayKey, t.activeMs)
-    const autoDone = [top.map(p => p.name).join(' · '), t.activeMs ? dur : ''].filter(Boolean).join(' · ')
-    const ui = await read($, dueUi)
-    const addValue = ui.add === '' ? todayKey : ui.add
-    const btn = (key: string, label: string, f: (x: Todo[], k: string) => Todo[]) =>
-      <Button key={key} label={label} onPress={() => editTodos($, f)} />
+    const current = await read($, tab)
+    const tabBtn = (id: string, label: string) => (
+      <Button key={`tab-${id}`} label={current === id ? `● ${label}` : label} dimColor={current !== id} onPress={() => update($, tab, () => id)} />
+    )
+    let body
+    if (current === 'now') {
+      const changed = topFiles(await read($, files), prefs.cwd, 8)
+      body = (
+        <Box flexDirection="column" gap={1}>
+          <Box flexDirection="column">
+            <Text>{L.now}: {where || lines[l.mood]}</Text>
+            {branchEl}
+            {l.lastTurn ? <Text dimColor>🔁 {turnRecap(prefs.lang, l.lastTurn)}</Text> : null}
+            {failEl}
+          </Box>
+          {l.todoTotal > 0 ? (
+            <Progress label={L.todo} value={l.todoDone} max={l.todoTotal} valueText={`${l.todoDone}/${l.todoTotal}`} color={COLOR} />
+          ) : null}
+          {m.contextPct !== null || m.limits.length > 0 ? (
+            <Box flexDirection="column">
+              <Text weight="semibold">{L.meter}</Text>
+              {m.contextPct !== null ? (
+                <Progress label={L.ctx} value={m.contextPct} max={100} valueText={`${m.contextPct}%`} color={levelColor(m.contextPct) ?? COLOR} />
+              ) : null}
+              {m.contextPct !== null && m.contextPct >= 90 ? <Text color={BAD}>{L.ctxHint}</Text> : null}
+              {m.limits.map(x => {
+                const reset = fmtReset(x.resetsAt, now)
+                const text = `${Math.round(x.pct)}%${reset ? ` (${L.resets} ${reset})` : ''}`
+                return <Progress label={`⏳ ${limitLabel(x.kind, prefs.lang)}`} value={Math.min(x.pct, 100)} max={100} valueText={text} color={levelColor(x.pct) ?? COLOR} />
+              })}
+            </Box>
+          ) : null}
+          <Box flexDirection="column">
+            <Text weight="semibold">{L.files}</Text>
+            {changed.length === 0 ? <Text dimColor>{L.noFiles}</Text> : null}
+            {changed.map(f => <Text dimColor>{f.label} <Text color={COLOR}>+{f.count}</Text></Text>)}
+          </Box>
+          <Box flexDirection="column">
+            <Text weight="semibold">{L.repos}</Text>
+            {dirty.length === 0 ? <Text dimColor>{L.cleanRepos} ✨</Text> : null}
+            {dirty.map(r => <Text><Text weight="semibold">{r.name}</Text> <Text dimColor>({r.branch})</Text> {repoText(r)}</Text>)}
+          </Box>
+        </Box>
+      )
+    } else if (current === 'stats') {
+      const top = topProjects(t, 4)
+      const hist = await read($, week)
+      const vs = vsYesterday(prefs.lang, hist, todayKey, t.activeMs)
+      body = (
+        <Box flexDirection="column" gap={1}>
+          <Box flexDirection="column">
+            <Text weight="semibold">{headline(prefs.lang, prefs.tone, dur)}</Text>
+            <Text tabular dimColor>
+              📝 {L.edits} {t.edits} · 🧪 {L.tests} {t.tests} (✅{t.tests - t.testsFailed} ❌{t.testsFailed}) · 🛡️ {L.pushBlocked} {t.pushBlocked} · 🙋 {L.asks} {t.asks}
+            </Text>
+          </Box>
+          <Box flexDirection="column">
+            <Text weight="semibold">{L.chart}</Text>
+            <Svg source={chartSvg(t.hourly)} alt={L.chartAlt} />
+          </Box>
+          <Box flexDirection="column">
+            <Text weight="semibold">{L.week}{vs ? <Text dimColor>  {vs}</Text> : null}</Text>
+            <Svg source={weekSvg(weekDays(hist, todayKey), prefs.lang)} alt={L.weekAlt} />
+          </Box>
+          <Box flexDirection="column">
+            <Text weight="semibold">{L.projects}</Text>
+            {top.length === 0 ? <Text dimColor>{L.none}</Text> : null}
+            {top.map(p => (
+              <Progress label={p.name} value={p.share} max={1} valueText={`${Math.round(p.share * 100)}%`} color={COLOR} />
+            ))}
+          </Box>
+          <Box flexDirection="column">
+            <Text weight="semibold">{L.tokens}</Text>
+            <Text tabular dimColor>
+              {L.tokIn} {fmtTokens(t.tokensIn)} · {L.tokCached} {fmtTokens(t.tokensCached)} · {L.tokOut} {fmtTokens(t.tokensOut)}
+            </Text>
+          </Box>
+        </Box>
+      )
+    } else {
+      const ui = await read($, dueUi)
+      const addValue = ui.add === '' ? todayKey : ui.add
+      const top = topProjects(t, 4)
+      const autoDone = [top.map(p => p.name).join(' · '), t.activeMs ? dur : ''].filter(Boolean).join(' · ')
+      const edit = (key: string, label: string, f: (x: Todo[], k: string) => Todo[], dim = false) =>
+        <Button key={key} label={label} plain dimColor={dim} onPress={() => editTodos($, f)} />
+      body = (
+        <Box flexDirection="column" gap={1}>
+          {[
+            { icon: '🔥', title: L.dueToday, items: sec.dueToday },
+            { icon: '🌙', title: L.dueTomorrow, items: sec.dueTomorrow },
+            { icon: '📋', title: L.dueRest, items: sec.rest },
+          ].map(g => g.items.length === 0 ? null : (
+            <Box key={`sec-${g.icon}`} flexDirection="column">
+              <Text weight="semibold">{g.icon} {g.title} ({g.items.length})</Text>
+              {g.items.map(x => {
+                // 날짜는 드롭다운이 보여주니, 글자는 마감 지난 경고만
+                const late = !!x.due && x.due < todayKey
+                return (
+                  <Box key={`todo-${x.id}`} flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                    {edit(`check-${x.id}`, '☐', (arr, k) => completeTodo(arr, x.id, k))}
+                    <Text>{x.text}</Text>
+                    {late ? <Text color={BAD}>{dueLabel(x.due, todayKey, prefs.lang)}</Text> : null}
+                    <Select key={`due-${x.id}`} options={dueOptions(todayKey, prefs.lang, x.due)} value={ui.editing === x.id ? 'custom' : x.due ?? 'none'} onSelect={v => pickRowDue($, x.id, v)} />
+                    {ui.editing === x.id ? (
+                      <Input key={`due-custom-${x.id}`} placeholder={L.customPh} submitLabel={L.add} onSubmit={v => customRowDue($, x.id, v)} />
+                    ) : null}
+                    {edit(`del-${x.id}`, '✕', arr => removeTodo(arr, x.id), true)}
+                  </Box>
+                )
+              })}
+            </Box>
+          ))}
+          <Box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+            <Input key="todo-add" placeholder={L.addTodo} submitLabel={L.add} onSubmit={v => submitTodo($, v)} />
+            <Select key="todo-due" options={dueOptions(todayKey, prefs.lang, ui.add === 'custom' ? undefined : addValue)} value={addValue} onSelect={v => pickAddDue($, v)} />
+            {ui.add === 'custom' ? (
+              <Input key="todo-due-custom" placeholder={L.customPh} submitLabel={L.add} onSubmit={v => customAddDue($, v)} />
+            ) : null}
+          </Box>
+          <Box flexDirection="column">
+            <Text weight="semibold">✅ {L.doneToday} ({sec.doneToday.length})</Text>
+            {sec.doneToday.map(x => (
+              <Box key={`todo-${x.id}`} flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
+                {edit(`uncheck-${x.id}`, '☑', a => undoTodo(a, x.id))}
+                <Text dimColor>{x.text}</Text>
+              </Box>
+            ))}
+            {autoDone ? <Text dimColor>🐾 {L.auto}: {autoDone}</Text> : null}
+          </Box>
+        </Box>
+      )
+    }
 
     return (
       <Box flexDirection="column" gap={1} paddingX={2} paddingY={1}>
-        {[
-          { icon: '🔥', title: L.dueToday, items: sec.dueToday },
-          { icon: '🌙', title: L.dueTomorrow, items: sec.dueTomorrow },
-          { icon: '📋', title: L.dueRest, items: sec.rest },
-        ].map(g => g.items.length === 0 ? null : (
-          <Box key={`sec-${g.icon}`} flexDirection="column">
-            <Text weight="semibold">{g.icon} {g.title} ({g.items.length})</Text>
-            {g.items.map(x => {
-              // 날짜는 드롭다운이 보여주니, 글자는 마감 지난 경고만
-              const late = !!x.due && x.due < todayKey
-              return (
-                <Box key={`todo-${x.id}`} flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-                  <Text>☐ {x.text}</Text>
-                  {late ? <Text color={BAD}>{dueLabel(x.due, todayKey, prefs.lang)}</Text> : null}
-                  {btn(`done-${x.id}`, '✓', (arr, k) => completeTodo(arr, x.id, k))}
-                  <Select key={`due-${x.id}`} options={dueOptions(todayKey, prefs.lang, x.due)} value={ui.editing === x.id ? 'custom' : x.due ?? 'none'} onSelect={v => pickRowDue($, x.id, v)} />
-                  {ui.editing === x.id ? (
-                    <Input key={`due-custom-${x.id}`} placeholder={L.customPh} submitLabel={L.add} onSubmit={v => customRowDue($, x.id, v)} />
-                  ) : null}
-                  {btn(`del-${x.id}`, '✕', arr => removeTodo(arr, x.id))}
-                </Box>
-              )
-            })}
-          </Box>
-        ))}
         <Box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-          <Select key="todo-due" label={L.duePick} options={dueOptions(todayKey, prefs.lang, ui.add === 'custom' ? undefined : addValue)} value={addValue} onSelect={v => pickAddDue($, v)} />
-          {ui.add === 'custom' ? (
-            <Input key="todo-due-custom" placeholder={L.customPh} submitLabel={L.add} onSubmit={v => customAddDue($, v)} />
-          ) : null}
-        </Box>
-        <Input key="todo-add" placeholder={L.addTodo} submitLabel={L.add} onSubmit={v => submitTodo($, v)} />
-        <Box flexDirection="column">
-          <Text weight="semibold">✅ {L.doneToday}</Text>
-          {sec.doneToday.map(x => (
-            <Box key={`todo-${x.id}`} flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-              <Text dimColor>☑ {x.text}</Text>
-              {btn(`undo-${x.id}`, '↺', a => undoTodo(a, x.id))}
-            </Box>
-          ))}
-          {autoDone ? <Text dimColor>🐾 {L.auto}: {autoDone}</Text> : null}
-        </Box>
-        <Box flexDirection="row" gap={2} alignItems="center">
-          <Text size="title" color={COLOR}>{FACE[l.mood]}</Text>
-          <Box flexDirection="column" flexGrow={1}>
-            <Text weight="semibold">{headline(prefs.lang, prefs.tone, dur)}</Text>
-            <Text dimColor>{L.now}: {where || lines[l.mood]}</Text>
-            {branchEl}
-            {l.lastTurn ? <Text dimColor>🔁 {turnRecap(prefs.lang, l.lastTurn)}</Text> : null}
-          </Box>
+          <Text weight="semibold" color={COLOR}>{FACE[l.mood]}</Text>
+          <Text weight="semibold">{lines[l.mood]}</Text>
+          {meterEls}
           <Button key="collapse" label={L.collapse} onPress={() => update($, isCompact, () => true)} />
         </Box>
-        {failEl}
-
-        {m.contextPct !== null || m.limits.length > 0 ? <Text weight="semibold">{L.meter}</Text> : null}
-        {m.contextPct !== null ? (
-          <Progress label={L.ctx} value={m.contextPct} max={100} valueText={`${m.contextPct}%`} color={levelColor(m.contextPct) ?? COLOR} />
-        ) : null}
-        {m.contextPct !== null && m.contextPct >= 90 ? <Text color={BAD}>{L.ctxHint}</Text> : null}
-        {m.limits.map(x => {
-          const reset = fmtReset(x.resetsAt, now)
-          const text = `${Math.round(x.pct)}%${reset ? ` (${L.resets} ${reset})` : ''}`
-          return <Progress label={`⏳ ${limitLabel(x.kind, prefs.lang)}`} value={Math.min(x.pct, 100)} max={100} valueText={text} color={levelColor(x.pct) ?? COLOR} />
-        })}
-
-        <Text weight="semibold">{L.chart}</Text>
-        <Svg source={chartSvg(t.hourly)} alt={L.chartAlt} />
-
-        <Text weight="semibold">{L.week}{vs ? <Text dimColor>  {vs}</Text> : null}</Text>
-        <Svg source={weekSvg(weekDays(hist, todayKey), prefs.lang)} alt={L.weekAlt} />
-
-        <Text weight="semibold">{L.projects}</Text>
-        {top.length === 0 ? <Text dimColor>{L.none}</Text> : null}
-        {top.map(p => (
-          <Progress label={p.name} value={p.share} max={1} valueText={`${Math.round(p.share * 100)}%`} color={COLOR} />
-        ))}
-
-        <Text weight="semibold">{L.did}</Text>
-        <Text tabular>📝 {L.edits} {t.edits}   🧪 {L.tests} {t.tests} (✅{t.tests - t.testsFailed} ❌{t.testsFailed})</Text>
-        <Text tabular>🛡️ {L.pushBlocked} {t.pushBlocked}   🙋 {L.asks} {t.asks}</Text>
-
-        <Text weight="semibold">{L.files}</Text>
-        {changed.length === 0 ? <Text dimColor>{L.noFiles}</Text> : null}
-        {changed.map(f => <Text dimColor>{f.label} <Text color={COLOR}>+{f.count}</Text></Text>)}
-
-        <Text weight="semibold">{L.repos}</Text>
-        {dirty.length === 0 ? <Text dimColor>{L.cleanRepos} ✨</Text> : null}
-        {dirty.map(r => <Text><Text weight="semibold">{r.name}</Text> <Text dimColor>({r.branch})</Text> {repoText(r)}</Text>)}
-
-        <Text weight="semibold">{L.tokens}</Text>
-        <Text tabular>
-          {L.tokIn} {fmtTokens(t.tokensIn)} · {L.tokCached} {fmtTokens(t.tokensCached)} · {L.tokOut} {fmtTokens(t.tokensOut)}
-        </Text>
-
-        {todo}
+        <Box flexDirection="row" gap={1} flexWrap="wrap">
+          {tabBtn('todo', L.tabTodo)}
+          {tabBtn('now', L.tabNow)}
+          {tabBtn('stats', L.tabStats)}
+        </Box>
+        {body}
       </Box>
     )
   })

@@ -237,11 +237,27 @@ test('vscode: compact pane (band role) expands and collapses', async ($, on) => 
   expect(compact).toContain('(=^･ω･^=)')
   expect(await pane.find({ text: '⏱ 시간대별 작업량' })).toBeUndefined()
 
+  // 펼치면 처음엔 할 일 탭 (접기 버튼은 맨 위 머리줄)
   await pane.press({ key: 'expand' })
+  expect(await pane.find({ key: 'collapse' })).toBeTruthy()
+  expect(await pane.find({ key: 'todo-add' })).toBeTruthy()
+  expect(await pane.find({ text: '⏱ 시간대별 작업량' })).toBeUndefined()
+  // 통계 탭
+  await pane.press({ key: 'tab-stats' })
   expect(await pane.find({ text: '⏱ 시간대별 작업량' })).toBeTruthy()
   expect(await pane.find({ text: '📅 최근 7일' })).toBeTruthy()
-  await pane.press({ key: 'collapse' })
+  expect(await pane.find({ key: 'todo-add' })).toBeUndefined()
+  // 지금 탭
+  await pane.press({ key: 'tab-now' })
+  expect(await pane.find({ text: '📄 이번 대화에서 바뀐 파일' })).toBeTruthy()
   expect(await pane.find({ text: '⏱ 시간대별 작업량' })).toBeUndefined()
+  // 접었다 펴도 마지막 탭 기억
+  await pane.press({ key: 'collapse' })
+  expect(await pane.find({ text: '📄 이번 대화에서 바뀐 파일' })).toBeUndefined()
+  await pane.press({ key: 'expand' })
+  expect(await pane.find({ text: '📄 이번 대화에서 바뀐 파일' })).toBeTruthy()
+  await pane.press({ key: 'tab-todo' })
+  await pane.press({ key: 'collapse' })
 
   // 명령으로 추가 → 접힌 화면에 다음 할 일
   const r = await $.command.run({ command: 'nyan', args: 'todo PR 리뷰 / 오늘' })
@@ -266,7 +282,7 @@ test('vscode: todo list in expanded pane', async ($, on) => {
   await pane.select({ key: 'todo-due', value: 'none' })
   await pane.input({ key: 'todo-add', text: '아이디어 메모' })
   expect(await pane.find({ text: '📋 나머지 (1)' })).toBeTruthy()
-  expect(await pane.find({ text: '☐ 아이디어 메모' })).toBeTruthy()
+  expect(await pane.find({ text: '아이디어 메모' })).toBeTruthy()
   expect((await pane.find({ key: 'todo-due' }))?.props.value).toBe(opts[0].value)
   // 직접 입력: MM/DD만 받음
   await pane.select({ key: 'todo-due', value: 'custom' })
@@ -276,11 +292,15 @@ test('vscode: todo list in expanded pane', async ($, on) => {
   await pane.input({ key: 'todo-add', text: '연말 정산' })
   expect(await pane.find({ text: '📋 나머지 (2)' })).toBeTruthy()
 
-  const id = (await pane.find({ type: 'Box', text: /^☐ 주간 리포트 확인/ }))?.key?.replace(/^todo-/, '') ?? ''
-  await pane.press({ key: `done-${id}` })
-  expect(await pane.find({ text: '☑ 주간 리포트 확인' })).toBeTruthy()
-  await pane.press({ key: `undo-${id}` })
-  expect(await pane.find({ text: '☐ 주간 리포트 확인' })).toBeTruthy()
+  const id = (await pane.find({ type: 'Box', text: /^☐\s?주간 리포트 확인/ }))?.key?.replace(/^todo-/, '') ?? ''
+  expect(id).not.toBe('')
+  // 체크박스 자체가 버튼: ☐ 누르면 완료, ☑ 누르면 되돌림
+  expect(await pane.find({ key: `done-${id}` })).toBeUndefined() // ✓ 버튼은 없앰
+  await pane.press({ key: `check-${id}` })
+  expect((await pane.find({ key: `uncheck-${id}` }))?.props.label).toBe('☑')
+  expect(await pane.find({ text: '✅ 오늘 한 일 (1)' })).toBeTruthy()
+  await pane.press({ key: `uncheck-${id}` })
+  expect((await pane.find({ key: `check-${id}` }))?.props.label).toBe('☐')
   // 행별 마감 변경: 드롭다운으로 내일 → 직접 입력으로 12/30
   await pane.select({ key: `due-${id}`, value: opts[1].value })
   expect(await pane.find({ text: '🌙 내일까지 (1)' })).toBeTruthy()
