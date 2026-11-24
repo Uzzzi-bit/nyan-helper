@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import {
-  activityOf, activityText, addCall, addFile, addUsage, chartSvg, dayKey, emptyToday, failLabel,
+  CAT, activityOf, activityText, addCall, addFile, addUsage, chartSvg, dayKey, emptyToday, failLabel,
   fmtDur, fmtReset, fmtSpan, fmtTokens, headline, hourOf, isDirty, isProtected, isPushCommand,
   isTestCommand, levelColor, limitLabel, linesFor, parseGitStatus, parseNyanArgs, projectOf,
   rememberDay, resolveLang, resolveTone, topFiles, topProjects, turnRecap, upgradeToday,
@@ -109,6 +109,16 @@ test('nyan command args', async () => {
   expect(parseNyanArgs('memo x')).toEqual({ kind: 'todo', text: 'x' }) // 예전 memo = 할 일 추가
   expect(parseNyanArgs('todo')).toEqual({ kind: 'open' }) // 글 없으면 그냥 펼치기
   expect(parseNyanArgs('tomorrow y')).toEqual({ kind: 'open' }) // v1 명령은 없앰
+})
+
+test('cat art: 3 lines per mood, same ears, narrow chars', async () => {
+  const moods = ['idle', 'working', 'waiting', 'done', 'error'] as const
+  for (const m of moods) {
+    expect(CAT[m].length).toBe(3)
+    expect(CAT[m][0]).toBe(CAT.idle[0]) // 귀는 같고 표정만 바뀜
+    for (const line of CAT[m]) expect(/^[ -~ω]*$/.test(line)).toBe(true) // 줄맞춤 깨지는 넓은 글자 금지
+  }
+  expect(new Set(moods.map(m => CAT[m][1])).size).toBe(5) // 상태마다 다른 표정
 })
 
 test('due date parsing', async () => {
@@ -233,13 +243,16 @@ test('vscode: compact pane (band role) expands and collapses', async ($, on) => 
   on('store.set', () => ({ value: undefined }))
   const pane = await $.ui.mount({ plugin: 'nyan-helper', surface: 'vscode', component: 'Pane', requestId: 'nyan-helper', props: {} })
   await pane.drawn()
-  const compact = (await pane.find({ text: '쉬는 중이다냥~' }))?.text ?? ''
-  expect(compact).toContain('(=^･ω･^=)')
+  // 여러 줄 고양이 + 말풍선 (정체성)
+  expect((await pane.find({ key: 'cat' }))?.text ?? '').toContain(CAT.idle[1])
+  expect((await pane.find({ key: 'bubble' }))?.text ?? '').toContain('쉬는 중이다냥~')
   expect(await pane.find({ text: '⏱ 시간대별 작업량' })).toBeUndefined()
 
   // 펼치면 처음엔 할 일 탭 (접기 버튼은 맨 위 머리줄)
   await pane.press({ key: 'expand' })
   expect(await pane.find({ key: 'collapse' })).toBeTruthy()
+  expect((await pane.find({ key: 'cat' }))?.text ?? '').toContain(CAT.idle[1])
+  expect(await pane.find({ key: 'bubble' })).toBeTruthy()
   expect(await pane.find({ key: 'todo-add' })).toBeTruthy()
   expect(await pane.find({ text: '⏱ 시간대별 작업량' })).toBeUndefined()
   // 통계 탭

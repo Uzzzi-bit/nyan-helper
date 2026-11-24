@@ -10,6 +10,15 @@ export const FACE: Record<Mood, string> = {
   error: '(=;ω;=)',
 }
 
+/** 패널용 3줄 고양이 (귀는 같고 표정·발만 바뀜). 줄맞춤 위해 ASCII + ω만 */
+export const CAT: Record<Mood, [string, string, string]> = {
+  idle: [' /\\_/\\ ', '( -ω- )', ' > z < '],
+  working: [' /\\_/\\ ', '( oωo )', ' > ~ < '],
+  waiting: [' /\\_/\\ ', '( .ω. )', ' > ? < '],
+  done: [' /\\_/\\ ', '( ^ω^ )', ' > * < '],
+  error: [' /\\_/\\ ', '( ;ω; )', ' > _ < '],
+}
+
 // ── 말투별 한 줄 ────────────────────────────────────────
 const LINES: Record<Lang, Record<Exclude<Tone, 'custom'>, Record<Mood, string>>> = {
   ko: {

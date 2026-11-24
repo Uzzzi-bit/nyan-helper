@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { DaySum, Lang, Todo, Live, Meter, Mood, RepoState, Today, Tone } from '../types'
 import {
-  FACE, UI, activityOf, activityText, addCall, addFile, addUsage, chartSvg, dayKey, emptyToday,
+  CAT, FACE, UI, activityOf, activityText, addCall, addFile, addUsage, chartSvg, dayKey, emptyToday,
   failLabel, fmtDur, fmtReset, fmtTokens, headline, hourOf, isDirty, isProtected, isPushCommand,
   isTestCommand, levelColor, limitLabel, linesFor, parseGitStatus, parseNyanArgs, projectOf,
   rememberDay, resolveLang, resolveTone, topFiles, topProjects, turnRecap, upgradeToday,
@@ -334,15 +334,25 @@ export const register: Register = (on, options) => {
     ]
     const failEl = l.lastFail ? <Text color={BAD}>❌ {L.failed}: {l.lastFail}</Text> : null
     const sec = todoSections(await read($, todos), todayKey)
+    // 정체성: 3줄 고양이 + 주황 테두리 말풍선
+    const mascot = (
+      <Box flexDirection="row" gap={1} alignItems="center">
+        <Box key="cat" flexDirection="column">
+          {CAT[l.mood].map(row => <Text mono weight="bold" color={COLOR}>{row}</Text>)}
+        </Box>
+        <Box key="bubble" borderStyle="round" borderColor={COLOR} paddingX={1}>
+          <Text size="heading" weight="semibold">{lines[l.mood]}</Text>
+        </Box>
+      </Box>
+    )
 
     if (compact) {
       const lateN = sec.dueToday.filter(x => (x.due ?? '') < todayKey).length
       const nextUp = sec.dueToday[0] ?? sec.dueTomorrow[0] ?? sec.rest[0]
       return (
         <Box flexDirection="column" paddingX={2} paddingY={1}>
+          {mascot}
           <Box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-            <Text weight="semibold" color={COLOR}>{FACE[l.mood]}</Text>
-            <Text weight="semibold">{lines[l.mood]}</Text>
             {where ? <Text dimColor>{where}</Text> : null}
             {branchEl}
             <Button key="expand" label={L.expand} onPress={() => update($, isCompact, () => false)} />
@@ -504,9 +514,8 @@ export const register: Register = (on, options) => {
 
     return (
       <Box flexDirection="column" gap={1} paddingX={2} paddingY={1}>
+        {mascot}
         <Box flexDirection="row" gap={1} alignItems="center" flexWrap="wrap">
-          <Text weight="semibold" color={COLOR}>{FACE[l.mood]}</Text>
-          <Text weight="semibold">{lines[l.mood]}</Text>
           {meterEls}
           <Button key="collapse" label={L.collapse} onPress={() => update($, isCompact, () => true)} />
         </Box>
