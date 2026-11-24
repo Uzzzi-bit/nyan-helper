@@ -1,7 +1,7 @@
 {
   "name": "my-plugins",
   "owner": { "name": "Uzzzi-bit" },
-  "description": "Claude Code 플러그인 모음: 작업냥(nyan-helper) 고양이 조수 패널 / Claude Code plugins: nyan-helper cat sidekick panel",
+  "description": "🐾 작업냥 nyan-helper: Claude Code 고양이 조수 패널 / a cat sidekick panel for Claude Code",
   "plugins": [
     {
       "name": "nyan-helper",

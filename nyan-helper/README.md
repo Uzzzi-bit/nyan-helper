@@ -68,11 +68,11 @@ A cat sidekick for Claude Code that shows what Claude is doing right now and wha
 
 Claude Code 안에서 (2.1.275 이상):
 ```
-/plugin install nyan-helper --marketplace Uzzzi-bit/claude-plugins
+/plugin install nyan-helper --marketplace Uzzzi-bit/nyan-helper
 ```
 또는 터미널에서:
 ```bash
-claude plugin marketplace add Uzzzi-bit/claude-plugins
+claude plugin marketplace add Uzzzi-bit/nyan-helper
 claude plugin install nyan-helper@my-plugins
 ```
 설치 후 `/reload-plugins` 또는 재시작. VS Code에서 패널이 안 보이면 `/nyan`.
