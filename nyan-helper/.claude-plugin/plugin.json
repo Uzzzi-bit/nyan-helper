@@ -1,0 +1,36 @@
+{
+  "name": "nyan-helper",
+  "version": "0.1.0",
+  "description": "작업을 도와주는 고양이 조수: 지금 하는 일·오늘 통계를 패널(VS Code)이나 입력창 위 띠(터미널)로 보여줘요. 모델 토큰 0.",
+  "author": { "name": "nyan-helper contributors" },
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Language / 언어",
+      "description": "auto = Claude 언어 설정(language)을 따르고, 없으면 한국어 / auto follows Claude's language setting",
+      "options": ["auto", "ko", "en"],
+      "default": "auto"
+    },
+    "tone": {
+      "type": "string",
+      "title": "Tone / 말투",
+      "description": "nyan(냥체) · gyaru · plain(담백) · custom(직접 입력)",
+      "options": ["nyan", "gyaru", "plain", "custom"],
+      "default": "nyan"
+    },
+    "protectedBranches": {
+      "type": "string",
+      "title": "Protected branches / 운영 브랜치",
+      "description": "이 브랜치에서 작업 중이면 경고 표시 (쉼표로 구분) / warn when working on these branches",
+      "default": "main,master"
+    },
+    "customLines": {
+      "type": "string",
+      "title": "Custom lines / 직접 입력 문장",
+      "description": "tone=custom일 때 '|'로 구분: 작업중|대기|완료|막힘|허락대기 (working|idle|done|error|waiting)",
+      "default": ""
+    }
+  }
+}

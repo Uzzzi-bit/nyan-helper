@@ -1,0 +1,11 @@
+{
+  "name": "my-plugins",
+  "owner": { "name": "Uzzzi-bit" },
+  "plugins": [
+    {
+      "name": "nyan-helper",
+      "source": "./nyan-helper",
+      "description": "작업을 도와주는 고양이 조수 패널 / A cat sidekick panel for Claude Code"
+    }
+  ]
+}
